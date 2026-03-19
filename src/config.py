@@ -1,5 +1,13 @@
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from pydantic import Field
+import logging
+from pathlib import Path
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s | %(levelname)s | %(name)s | %(message)s",
+)
+BASE_DIR = Path().resolve()
 
 
 class Settings(BaseSettings):
