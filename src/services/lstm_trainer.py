@@ -22,6 +22,9 @@ logger = getLogger(__name__)
 class TrainResult:
     best_params: ModelHyperParams
     best_model_path: Path
+    best_epoch: int
+    epoch_history: list[dict[str, float]]
+    examples: list[tuple[str, str, str]]
     test_metrics: EpochMetrics
 
 
@@ -116,15 +119,13 @@ class LSTMTrainerService:
         )
 
     @torch.no_grad()
-    def print_examples(
+    def _collect_examples(
         self,
         model: NextTokenLSTM,
         dataset: NextTokenDataset,
         num_examples: int = 8,
-    ) -> None:
-        model.eval()
-        print("\nПримеры автодополнений:")
-
+    ) -> list[tuple[str, str, str]]:
+        examples: list[tuple[str, str, str]] = []
         for idx in range(min(num_examples, len(dataset))):
             x_tokens, y_token = dataset[idx]
 
@@ -140,7 +141,13 @@ class LSTMTrainerService:
             target_text = self._tokens_service.decode_tokens([target_token])
             pred_text = self._tokens_service.decode_tokens([pred_token])
 
-            print(f"[{idx + 1}] input:  {prompt_text}")
+            examples.append((prompt_text, target_text, pred_text))
+        return examples
+
+    def print_examples(self, examples: list[tuple[str, str, str]]) -> None:
+        print("\nПримеры автодополнений:")
+        for idx, (prompt_text, target_text, pred_text) in enumerate(examples, start=1):
+            print(f"[{idx}] input:  {prompt_text}")
             print(f"    target: {target_text}")
             print(f"    pred:   {pred_text}")
 
@@ -162,6 +169,8 @@ class LSTMTrainerService:
         )
 
         best_val_loss = float("inf")
+        best_epoch = 1
+        epoch_history: list[dict[str, float]] = []
 
         for epoch in range(1, self._config.epochs + 1):
             train_loss = self._train_one_epoch(
@@ -177,14 +186,24 @@ class LSTMTrainerService:
                 f"val_rouge1={val_metrics.rouge1:.4f} | "
                 f"val_rougeL={val_metrics.rougeL:.4f}"
             )
+            epoch_history.append(
+                {
+                    "epoch": float(epoch),
+                    "train_loss": train_loss,
+                    "val_accuracy": val_metrics.accuracy,
+                    "val_loss": val_metrics.loss,
+                    "val_rouge1": val_metrics.rouge1,
+                    "val_rougeL": val_metrics.rougeL,
+                }
+            )
 
             if val_metrics.loss < best_val_loss:
                 best_val_loss = val_metrics.loss
                 self._model_output_path.parent.mkdir(parents=True, exist_ok=True)
                 torch.save(model.state_dict(), self._model_output_path)
-                save_epoch_number = epoch
+                best_epoch = epoch
 
-        logger.info(f"Сохранение весов модели на эпохе - {save_epoch_number}")
+        logger.info(f"Сохранение весов модели на эпохе - {best_epoch}")
 
         model.load_state_dict(
             torch.load(self._model_output_path, map_location=self._device)
@@ -194,10 +213,14 @@ class LSTMTrainerService:
             f"\nTest: loss={test_metrics.loss:.4f}, "
             f"rouge1={test_metrics.rouge1:.4f}, rougeL={test_metrics.rougeL:.4f}"
         )
-        self.print_examples(model, test_dataset, num_examples=8)
+        examples = self._collect_examples(model, test_dataset, num_examples=8)
+        self.print_examples(examples)
 
         return TrainResult(
             best_params=params,
             best_model_path=self._model_output_path,
+            best_epoch=best_epoch,
+            epoch_history=epoch_history,
+            examples=examples,
             test_metrics=test_metrics,
         )

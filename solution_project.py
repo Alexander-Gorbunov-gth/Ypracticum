@@ -6,8 +6,10 @@ from src.domain.constans import DataConstants
 from src.domain.training import TrainingConfig
 from src.services.data_utils import TextDataPreparation
 from src.services.lstm_trainer import LSTMTrainerService
+from src.services.report_service import FinalReportService
 from src.services.rouge_service import get_metric_service
 from src.services.tokens import get_tokens_service
+from src.services.transformer_baseline import DistilGPT2BaselineService
 from src.services.training_dataset import DataLoaderFactory, NextTokenDataset
 
 logger = getLogger(__name__)
@@ -19,9 +21,10 @@ train_output_path = Path(BASE_DIR / DataConstants.train_output_path)
 val_output_path = Path(BASE_DIR / DataConstants.val_output_path)
 test_output_path = Path(BASE_DIR / DataConstants.test_output_path)
 model_output_path = Path(BASE_DIR / "models" / "next_token_lstm.pt")
+report_output_path = Path(BASE_DIR / "reports" / "final_report.txt")
 
 
-def prepare_datasets(recreate_data: bool = False) -> None:
+def prepare_datasets(recreate_data: bool = False) -> dict[str, str]:
     text_service = TextDataPreparation(recreate_data=recreate_data)
 
     result = text_service.create_process_dataset(
@@ -30,6 +33,7 @@ def prepare_datasets(recreate_data: bool = False) -> None:
         batch_size=DataConstants.batch_size,
         min_text_length=DataConstants.X_length + 1,
     )
+    process_dataset_result = result
     logger.info(result)
 
     result = text_service.create_next_token_dataset(
@@ -37,6 +41,7 @@ def prepare_datasets(recreate_data: bool = False) -> None:
         output_path=xy_dataset_file,
         batch_size=DataConstants.batch_size,
     )
+    xy_dataset_result = result
     logger.info(result)
 
     result = text_service.split_train_val_test(
@@ -45,10 +50,16 @@ def prepare_datasets(recreate_data: bool = False) -> None:
         val_output_path=val_output_path,
         test_output_path=test_output_path,
     )
+    split_result = result
     logger.info(result)
+    return {
+        "process_dataset_result": process_dataset_result,
+        "xy_dataset_result": xy_dataset_result,
+        "split_result": split_result,
+    }
 
 
-def run_training() -> None:
+def run_training() -> tuple:
     tokens_service = get_tokens_service()
     metric_service = get_metric_service()
 
@@ -111,7 +122,21 @@ def run_training() -> None:
     )
     logger.info("Модель сохранена: %s", result.best_model_path)
 
+    baseline_service = DistilGPT2BaselineService(
+        tokens_service=tokens_service,
+        metric_service=metric_service,
+    )
+    baseline_metrics = baseline_service.run(val_dataset=val_dataset)
+    logger.info(
+        "DistilGPT2 baseline metrics: rouge1=%.4f rougeL=%.4f",
+        baseline_metrics.rouge1,
+        baseline_metrics.rougeL,
+    )
+    return result, baseline_metrics
+
 
 if __name__ == "__main__":
-    prepare_datasets(recreate_data=True)
-    run_training()
+    prepare_results = prepare_datasets(recreate_data=True)
+    train_result, baseline_result = run_training()
+    report_service = FinalReportService(report_output_path=report_output_path)
+    report_service.create(prepare_results, train_result, baseline_result)
