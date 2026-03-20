@@ -28,3 +28,7 @@ class RougeMetricService(iTextMetricService):
 
         scores = self._scorer.score(target_text, pred_text)
         return scores["rouge1"].fmeasure, scores["rougeL"].fmeasure
+
+
+def get_metric_service() -> iTextMetricService:
+    return RougeMetricService()

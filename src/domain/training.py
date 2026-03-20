@@ -21,6 +21,7 @@ class TrainingConfig:
 
 @dataclass(frozen=True)
 class EpochMetrics:
+    accuracy: float
     loss: float
     rouge1: float
     rougeL: float

@@ -6,7 +6,7 @@ from src.domain.constans import DataConstants
 from src.domain.training import TrainingConfig
 from src.services.data_utils import TextDataPreparation
 from src.services.lstm_trainer import LSTMTrainerService
-from src.services.rouge_service import RougeMetricService
+from src.services.rouge_service import get_metric_service
 from src.services.tokens import get_tokens_service
 from src.services.training_dataset import DataLoaderFactory, NextTokenDataset
 
@@ -50,7 +50,7 @@ def prepare_datasets(recreate_data: bool = False) -> None:
 
 def run_training() -> None:
     tokens_service = get_tokens_service()
-    metric_service = RougeMetricService()
+    metric_service = get_metric_service()
 
     config = TrainingConfig(
         batch_size=256,

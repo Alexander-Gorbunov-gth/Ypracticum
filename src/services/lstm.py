@@ -12,8 +12,6 @@ class NextTokenLSTM(nn.Module):
         dropout: float = 0.0,
     ) -> None:
         super().__init__()
-        lstm_dropout = dropout if num_layers > 1 else 0.0
-
         self.embedding = nn.Embedding(
             num_embeddings=vocab_size,
             embedding_dim=embedding_dim,
@@ -23,7 +21,6 @@ class NextTokenLSTM(nn.Module):
             hidden_size=hidden_dim,
             num_layers=num_layers,
             batch_first=True,
-            dropout=lstm_dropout,
         )
         self.dropout = nn.Dropout(dropout)
         self.output = nn.Linear(hidden_dim, vocab_size)
@@ -61,27 +58,18 @@ class NextTokenLSTM(nn.Module):
         self,
         input_ids: torch.Tensor,
         max_new_tokens: int,
-        temperature: float = 1.0,
-        do_sample: bool = True,
     ) -> torch.Tensor:
         if max_new_tokens <= 0:
             return input_ids
-        if temperature <= 0:
-            raise ValueError("temperature must be > 0")
 
         self.eval()
         generated = input_ids
         hidden = None
 
         for _ in range(max_new_tokens):
-            logits, hidden = self.forward(generated[:, -1:].contiguous(), hidden)
-            logits = logits / temperature
+            logits, hidden = self.forward(generated.contiguous(), hidden)
 
-            if do_sample:
-                probs = torch.softmax(logits, dim=-1)
-                next_token = torch.multinomial(probs, num_samples=1)  # [B, 1]
-            else:
-                next_token = torch.argmax(logits, dim=-1, keepdim=True)  # [B, 1]
+            next_token = torch.argmax(logits, dim=-1, keepdim=True)  # [B, 1]
 
             generated = torch.cat([generated, next_token], dim=1)
 
