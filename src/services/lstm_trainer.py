@@ -85,7 +85,7 @@ class LSTMTrainerService:
         model.eval()
         total_loss = 0.0
         total_rouge1 = 0.0
-        total_rougeL = 0.0
+        total_rouge2 = 0.0
         samples = 0
         correct, total = 0, 0
 
@@ -102,12 +102,12 @@ class LSTMTrainerService:
             total += y_batch.size(0)
 
             for pred_token, target_token in zip(preds, y_batch):
-                rouge1, rougeL = self._metric_service.score(
+                rouge1, rouge2 = self._metric_service.score(
                     target_tokens=[int(target_token.item())],
                     pred_tokens=[int(pred_token.item())],
                 )
                 total_rouge1 += rouge1
-                total_rougeL += rougeL
+                total_rouge2 += rouge2
                 samples += 1
             accuracy = correct / total
 
@@ -115,7 +115,7 @@ class LSTMTrainerService:
             accuracy=accuracy,
             loss=total_loss / len(loader),
             rouge1=total_rouge1 / max(samples, 1),
-            rougeL=total_rougeL / max(samples, 1),
+            rouge2=total_rouge2 / max(samples, 1),
         )
 
     @torch.no_grad()
@@ -124,22 +124,20 @@ class LSTMTrainerService:
         model: NextTokenLSTM,
         dataset: NextTokenDataset,
         num_examples: int = 8,
+        max_new_tokens: int = 1,
     ) -> list[tuple[str, str, str]]:
         examples: list[tuple[str, str, str]] = []
         for idx in range(min(num_examples, len(dataset))):
             x_tokens, y_token = dataset[idx]
 
             x_batch = x_tokens.unsqueeze(0).to(self._device)
-
-            logits, _ = model(x_batch)
-            preds = torch.argmax(logits, dim=1)
-
-            pred_token = int(preds.item())
+            generated = model.generate(input_ids=x_batch, max_new_tokens=max_new_tokens)
+            pred_tokens = generated[0, x_batch.size(1) :].cpu().tolist()
             target_token = int(y_token.item())
 
             prompt_text = self._tokens_service.decode_tokens(x_batch[0].cpu().tolist())
             target_text = self._tokens_service.decode_tokens([target_token])
-            pred_text = self._tokens_service.decode_tokens([pred_token])
+            pred_text = self._tokens_service.decode_tokens(pred_tokens)
 
             examples.append((prompt_text, target_text, pred_text))
         return examples
@@ -158,7 +156,13 @@ class LSTMTrainerService:
         test_loader: DataLoader,
         test_dataset: NextTokenDataset,
     ) -> TrainResult:
-        params = ModelHyperParams(128, 256, 1, 0.1, 2e-3)
+        params = ModelHyperParams(
+            self._config.embedding_dim,
+            self._config.hidden_dim,
+            self._config.num_layers,
+            self._config.dropout,
+            self._config.learning_rate,
+        )
 
         model = self._build_model(params)
         criterion = nn.CrossEntropyLoss()
@@ -177,23 +181,26 @@ class LSTMTrainerService:
                 model, train_loader, criterion, optimizer
             )
             val_metrics = self._evaluate(model, val_loader, criterion)
+            test_metrics_epoch = self._evaluate(model, test_loader, criterion)
 
             print(
                 f"Epoch {epoch:02d}/{self._config.epochs} | "
                 f"train_loss={train_loss:.4f} | "
-                f"accuracy={val_metrics.accuracy:.4f} | "
                 f"val_loss={val_metrics.loss:.4f} | "
+                f"accuracy={val_metrics.accuracy:.4f} | "
                 f"val_rouge1={val_metrics.rouge1:.4f} | "
-                f"val_rougeL={val_metrics.rougeL:.4f}"
+                f"val_rouge2={val_metrics.rouge2:.4f} | "
+                f"test_loss={test_metrics_epoch.loss:.4f}"
             )
             epoch_history.append(
                 {
                     "epoch": float(epoch),
                     "train_loss": train_loss,
-                    "val_accuracy": val_metrics.accuracy,
                     "val_loss": val_metrics.loss,
+                    "val_accuracy": val_metrics.accuracy,
                     "val_rouge1": val_metrics.rouge1,
-                    "val_rougeL": val_metrics.rougeL,
+                    "val_rouge2": val_metrics.rouge2,
+                    "test_loss": test_metrics_epoch.loss,
                 }
             )
 
@@ -211,9 +218,14 @@ class LSTMTrainerService:
         test_metrics = self._evaluate(model, test_loader, criterion)
         print(
             f"\nTest: loss={test_metrics.loss:.4f}, "
-            f"rouge1={test_metrics.rouge1:.4f}, rougeL={test_metrics.rougeL:.4f}"
+            f"rouge1={test_metrics.rouge1:.4f}, rouge2={test_metrics.rouge2:.4f}"
         )
-        examples = self._collect_examples(model, test_dataset, num_examples=8)
+        examples = self._collect_examples(
+            model,
+            test_dataset,
+            num_examples=self._config.num_examples,
+            max_new_tokens=self._config.max_new_tokens,
+        )
         self.print_examples(examples)
 
         return TrainResult(

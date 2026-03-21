@@ -1,5 +1,5 @@
 ИТОГОВЫЙ ОТЧЕТ ПО ПРОЕКТУ
-Дата: 2026-03-20 19:56:05
+Дата: 2026-03-21 15:37:25
 
 1. Подготовка данных
 - Process dataset: Создан новый файл csv с сырыми данными, количество строк - 2000
@@ -9,73 +9,77 @@
 2. LSTM
 - Параметры: emb=128, hid=256, layers=1, dropout=0.1, lr=0.002
 - Лучшая эпоха: 4
-- Test: loss=6.6429, accuracy=0.0979, rouge1=0.0990, rougeL=0.0990
+- Test: loss=6.6530, accuracy=0.1023, rouge1=0.1033, rouge2=0.1033
 - История по эпохам:
-  epoch=1 | train_loss=7.3431 | val_accuracy=0.0544 | val_loss=6.9756 | val_rouge1=0.0554 | val_rougeL=0.0554
-  epoch=2 | train_loss=6.6810 | val_accuracy=0.0734 | val_loss=6.7770 | val_rouge1=0.0742 | val_rougeL=0.0742
-  epoch=3 | train_loss=6.3304 | val_accuracy=0.0912 | val_loss=6.6376 | val_rouge1=0.0918 | val_rougeL=0.0918
-  epoch=4 | train_loss=6.0322 | val_accuracy=0.1035 | val_loss=6.5818 | val_rouge1=0.1045 | val_rougeL=0.1045
-  epoch=5 | train_loss=5.7616 | val_accuracy=0.1135 | val_loss=6.5985 | val_rouge1=0.1145 | val_rougeL=0.1145
-  epoch=6 | train_loss=5.4964 | val_accuracy=0.1151 | val_loss=6.6441 | val_rouge1=0.1159 | val_rougeL=0.1159
-  epoch=7 | train_loss=5.2206 | val_accuracy=0.1170 | val_loss=6.7217 | val_rouge1=0.1184 | val_rougeL=0.1184
-  epoch=8 | train_loss=4.9334 | val_accuracy=0.1186 | val_loss=6.8112 | val_rouge1=0.1197 | val_rougeL=0.1197
+  epoch=1 | train_loss=7.3271 | val_accuracy=0.0520 | val_loss=6.9925 | val_rouge1=0.0530 | val_rouge2=0.0530 | test_loss=7.0104
+  epoch=2 | train_loss=6.6595 | val_accuracy=0.0740 | val_loss=6.7679 | val_rouge1=0.0753 | val_rouge2=0.0753 | test_loss=6.7853
+  epoch=3 | train_loss=6.3238 | val_accuracy=0.0889 | val_loss=6.6623 | val_rouge1=0.0900 | val_rouge2=0.0900 | test_loss=6.7019
+  epoch=4 | train_loss=6.0328 | val_accuracy=0.1055 | val_loss=6.6108 | val_rouge1=0.1064 | val_rouge2=0.1064 | test_loss=6.6530
+  epoch=5 | train_loss=5.7608 | val_accuracy=0.1079 | val_loss=6.6120 | val_rouge1=0.1089 | val_rouge2=0.1089 | test_loss=6.6683
+  epoch=6 | train_loss=5.4906 | val_accuracy=0.1162 | val_loss=6.6665 | val_rouge1=0.1169 | val_rouge2=0.1169 | test_loss=6.7300
+  epoch=7 | train_loss=5.2130 | val_accuracy=0.1174 | val_loss=6.7368 | val_rouge1=0.1184 | val_rouge2=0.1184 | test_loss=6.7968
+  epoch=8 | train_loss=4.9236 | val_accuracy=0.1185 | val_loss=6.8226 | val_rouge1=0.1197 | val_rouge2=0.1197 | test_loss=6.9089
 - Примеры LSTM:
   [1] input:  yet i woke with an insane headache
       target: this
-      pred:   i
+      pred:   i cant get to
   [2] input:  aprilspring time but when i
       target: woke
-      pred:   can
+      pred:   have to go to go
+  [3] input:  total cost of the atk for
+      target: the
+      pred:   the new day of the
+  [4] input:  just grew another chin im in a
+      target: confused
+      pred:   new day of the new
+  [5] input:  ##ulation are creaking so no
+      target: more
+      pred:   new day of the new
+  [6] input:  do i feel like quottom
+      target: cruise
+      pred:   i have to go to
+  [7] input:  ##t go 9on the computer i
+      target: hate
+      pred:   cant get to go
+  [8] input:  one time in ny when you got
+      target: 30
+      pred:   to go to go to
+
+3. Baseline DistilGPT2 (pretrained, transformers.pipeline)
+- Параметры генерации: max_new_tokens=5, do_sample=True, top_k=50
+- Validation: rouge1=0.1060, rouge2=0.1060, samples=500
+- Test: rouge1=0.1080, rouge2=0.1080, samples=500
+- Примеры DistilGPT2:
+  [1] input:  yet i woke with an insane headache
+      target: this
+      pred:   and
+  [2] input:  aprilspring time but when i
+      target: woke
+      pred:   came
   [3] input:  total cost of the atk for
       target: the
       pred:   the
   [4] input:  just grew another chin im in a
       target: confused
-      pred:   new
+      pred:   row
   [5] input:  ##ulation are creaking so no
       target: more
-      pred:   the
+      pred:   one
   [6] input:  do i feel like quottom
       target: cruise
-      pred:   is
+      pred:   ile
   [7] input:  ##t go 9on the computer i
       target: hate
-      pred:   can
+      pred:   know
   [8] input:  one time in ny when you got
       target: 30
-      pred:   a
-
-3. Baseline DistilGPT2 (pretrained, transformers.pipeline)
-- Параметры генерации: max_new_tokens=5, do_sample=True, top_k=50
-- Validation: rouge1=0.0993, rougeL=0.0993, samples=500
-- Примеры DistilGPT2:
-  [1] input:  no updates brilliant weekend down to col
-      target: ##ob
-      pred:   and/hogs
-  [2] input:  it snowing again i hate being
-      target: sick
-      pred:   stuck
-  [3] input:  feast no missing 17 again on thursday
-      target: is
-      pred:   4th
-  [4] input:  shine more i have a cute yellow
-      target: dress
-      pred:   .
-
-I
-  [5] input:  things they just never get old i
-      target: miss
-      pred:   have
-  [6] input:  online im so forgetful but its
-      target: still
-      pred:   not
-  [7] input:  input on windows 7 beta i need
-      target: food
-      pred:   to
-  [8] input:  habla espaool completely addicted
-      target: to
       pred:   to
 
-4. Артефакты
+4. Сравнение и выводы
+- Сравнение по тесту (ROUGE-1): LSTM=0.1033 vs DistilGPT2=0.1080
+- Лучшая модель: DistilGPT2 baseline
+- Рекомендация: Рекомендуем DistilGPT2 baseline: без дообучения она показала выше ROUGE на тесте.
+
+5. Артефакты
 - LSTM model path: /Users/gorbunov/Dev/AI_sprints/Ypracticum/models/next_token_lstm.pt
 - Report path: /Users/gorbunov/Dev/AI_sprints/Ypracticum/reports/final_report.txt

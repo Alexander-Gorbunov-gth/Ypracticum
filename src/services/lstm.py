@@ -64,13 +64,11 @@ class NextTokenLSTM(nn.Module):
 
         self.eval()
         generated = input_ids
-        hidden = None
+        logits, hidden = self.forward(generated.contiguous(), None)
 
         for _ in range(max_new_tokens):
-            logits, hidden = self.forward(generated.contiguous(), hidden)
-
-            next_token = torch.argmax(logits, dim=-1, keepdim=True)  # [B, 1]
-
+            next_token = torch.argmax(logits, dim=-1, keepdim=True)
             generated = torch.cat([generated, next_token], dim=1)
+            logits, hidden = self.forward(next_token, hidden)
 
         return generated

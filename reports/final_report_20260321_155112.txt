@@ -1,0 +1,103 @@
+ИТОГОВЫЙ ОТЧЕТ ПО ПРОЕКТУ
+Дата: 2026-03-21 15:51:12
+
+0. Входные параметры из конфига
+- DATA_BATCH_SIZE_PREP=50
+- DATA_X_LENGTH=7
+- LOCAL_DEVELOP=True
+- LOCAL_DEVELOP_LINE_LIMIT=50
+- LSTM_DROPOUT=0.1
+- LSTM_EMBEDDING_DIM=128
+- LSTM_HIDDEN_DIM=256
+- LSTM_LEARNING_RATE=0.002
+- LSTM_NUM_LAYERS=1
+- TRAINING_BATCH_SIZE=256
+- TRAINING_EPOCHS=8
+- TRAINING_MAX_NEW_TOKENS=4
+- TRAINING_NUM_EXAMPLES=8
+- TRAINING_PROMPT_FRACTION=0.75
+- TRAINING_SEARCH_EPOCHS=1
+- TRAINING_WEIGHT_DECAY=0.0
+
+1. Подготовка данных
+- Process dataset: Создан новый файл csv с сырыми данными, количество строк - 50
+- X/Y dataset: Создан датасет X->Y, количество строк - 1680
+- Split train/val/test: Разделение завершено: train=1344, val=168, test=168, total=1680
+
+2. LSTM
+- Параметры: emb=128, hid=256, layers=1, dropout=0.1, lr=0.002
+- Лучшая эпоха: 2
+- Test: loss=7.3123, accuracy=0.0476, rouge1=0.0476, rouge2=0.0000
+- История по эпохам:
+  epoch=1 | train_loss=10.2816 | val_accuracy=0.0298 | val_loss=10.0278 | val_rouge1=0.0298 | val_rouge2=0.0000 | test_loss=9.9984
+  epoch=2 | train_loss=8.2437 | val_accuracy=0.0357 | val_loss=7.8012 | val_rouge1=0.0357 | val_rouge2=0.0000 | test_loss=7.3123
+  epoch=3 | train_loss=6.2913 | val_accuracy=0.0357 | val_loss=8.7160 | val_rouge1=0.0357 | val_rouge2=0.0000 | test_loss=7.9935
+  epoch=4 | train_loss=6.0836 | val_accuracy=0.0357 | val_loss=9.2273 | val_rouge1=0.0357 | val_rouge2=0.0000 | test_loss=8.3797
+  epoch=5 | train_loss=6.0736 | val_accuracy=0.0357 | val_loss=9.5457 | val_rouge1=0.0357 | val_rouge2=0.0000 | test_loss=8.6090
+  epoch=6 | train_loss=6.0169 | val_accuracy=0.0357 | val_loss=9.7085 | val_rouge1=0.0357 | val_rouge2=0.0000 | test_loss=8.7432
+  epoch=7 | train_loss=6.0187 | val_accuracy=0.0357 | val_loss=9.8000 | val_rouge1=0.0357 | val_rouge2=0.0000 | test_loss=8.7818
+  epoch=8 | train_loss=5.9925 | val_accuracy=0.0357 | val_loss=9.8350 | val_rouge1=0.0357 | val_rouge2=0.0000 | test_loss=8.8197
+- Примеры LSTM:
+  [1] input:  longer in terms of how much i
+      target: need
+      pred:   i i i i
+  [2] input:  its not behaving at all
+      target: im
+      pred:   i i i i
+  [3] input:  that they are pos as much
+      target: as
+      pred:   i i i i
+  [4] input:  you drinking out of the forgotten table
+      target: drinks
+      pred:   i i i i
+  [5] input:  ##t think i even want to know
+      target: about
+      pred:   i i i i
+  [6] input:  he cant update his facebook by
+      target: text
+      pred:   i i i i
+  [7] input:  ex is threatening to start sh at
+      target: my
+      pred:   i i i i
+  [8] input:  mention crying is made of fail late
+      target: night
+      pred:   i i i i
+
+3. Baseline DistilGPT2 (pretrained, transformers.pipeline)
+- Параметры генерации: max_new_tokens=4, do_sample=True, top_k=50
+- Validation: rouge1=0.0712, rouge2=0.0000, samples=168
+- Test: rouge1=0.0575, rouge2=0.0000, samples=168
+- Примеры DistilGPT2:
+  [1] input:  longer in terms of how much i
+      target: need
+      pred:   like it.
+  [2] input:  its not behaving at all
+      target: im
+      pred:   ,› but
+  [3] input:  that they are pos as much
+      target: as
+      pred:   as they can handle
+  [4] input:  you drinking out of the forgotten table
+      target: drinks
+      pred:   ?
+  [5] input:  ##t think i even want to know
+      target: about
+      pred:   a thing.
+  [6] input:  he cant update his facebook by
+      target: text
+      pred:   this day or so
+  [7] input:  ex is threatening to start sh at
+      target: my
+      pred:   you, so I
+  [8] input:  mention crying is made of fail late
+      target: night
+      pred:   with the intention of
+
+4. Сравнение и выводы
+- Сравнение по тесту (ROUGE-1): LSTM=0.0476 vs DistilGPT2=0.0575
+- Лучшая модель: DistilGPT2 baseline
+- Рекомендация: Рекомендуем DistilGPT2 baseline: без дообучения она показала выше ROUGE на тесте.
+
+5. Артефакты
+- LSTM model path: /Users/gorbunov/Dev/AI_sprints/Ypracticum/models/next_token_lstm.pt
+- Report path: /Users/gorbunov/Dev/AI_sprints/Ypracticum/reports/final_report_20260321_155112.txt

@@ -10,17 +10,17 @@ class iTextMetricService(ABC):
     def score(
         self, target_tokens: list[int], pred_tokens: list[int]
     ) -> tuple[float, float]:
-        """Возвращает rouge1 и rougeL."""
+        """Возвращает rouge1 и rouge2."""
 
     @abstractmethod
     def score_text(self, target_text: str, pred_text: str) -> tuple[float, float]:
-        """Возвращает rouge1 и rougeL для строк."""
+        """Возвращает rouge1 и rouge2 для строк."""
 
 
 class RougeMetricService(iTextMetricService):
     def __init__(self) -> None:
         self._tokens_service: iTokensPreparation = get_tokens_service()
-        self._scorer = rouge_scorer.RougeScorer(["rouge1", "rougeL"], use_stemmer=True)
+        self._scorer = rouge_scorer.RougeScorer(["rouge1", "rouge2"], use_stemmer=True)
 
     def score(
         self, target_tokens: list[int], pred_tokens: list[int]
@@ -35,7 +35,7 @@ class RougeMetricService(iTextMetricService):
         target_text = target_text.strip() or "[EMPTY]"
         pred_text = pred_text.strip() or "[EMPTY]"
         scores = self._scorer.score(target_text, pred_text)
-        return scores["rouge1"].fmeasure, scores["rougeL"].fmeasure
+        return scores["rouge1"].fmeasure, scores["rouge2"].fmeasure
 
 
 def get_metric_service() -> iTextMetricService:

@@ -1,7 +1,7 @@
 from logging import getLogger
 from pathlib import Path
 
-from src.config import BASE_DIR
+from src.config import BASE_DIR, cfg
 from src.domain.constans import DataConstants
 from src.domain.training import TrainingConfig
 from src.services.data_utils import TextDataPreparation
@@ -59,16 +59,44 @@ def prepare_datasets(recreate_data: bool = False) -> dict[str, str]:
     }
 
 
+def get_config_snapshot() -> dict[str, str]:
+    return {
+        "LOCAL_DEVELOP": str(cfg.local_develop),
+        "LOCAL_DEVELOP_LINE_LIMIT": str(cfg.local_develop_line_limit),
+        "TRAINING_BATCH_SIZE": str(cfg.training_batch_size),
+        "TRAINING_EPOCHS": str(cfg.training_epochs),
+        "TRAINING_SEARCH_EPOCHS": str(cfg.training_search_epochs),
+        "TRAINING_PROMPT_FRACTION": str(cfg.training_prompt_fraction),
+        "TRAINING_WEIGHT_DECAY": str(cfg.training_weight_decay),
+        "TRAINING_NUM_EXAMPLES": str(cfg.training_num_examples),
+        "TRAINING_MAX_NEW_TOKENS": str(cfg.training_max_new_tokens),
+        "LSTM_EMBEDDING_DIM": str(cfg.lstm_embedding_dim),
+        "LSTM_HIDDEN_DIM": str(cfg.lstm_hidden_dim),
+        "LSTM_NUM_LAYERS": str(cfg.lstm_num_layers),
+        "LSTM_DROPOUT": str(cfg.lstm_dropout),
+        "LSTM_LEARNING_RATE": str(cfg.lstm_learning_rate),
+        "DATA_X_LENGTH": str(DataConstants.X_length),
+        "DATA_BATCH_SIZE_PREP": str(DataConstants.batch_size),
+    }
+
+
 def run_training() -> tuple:
     tokens_service = get_tokens_service()
     metric_service = get_metric_service()
 
     config = TrainingConfig(
-        batch_size=256,
-        epochs=8,
-        search_epochs=1,
-        prompt_fraction=0.75,
-        weight_decay=0.0,
+        batch_size=cfg.training_batch_size,
+        epochs=cfg.training_epochs,
+        search_epochs=cfg.training_search_epochs,
+        prompt_fraction=cfg.training_prompt_fraction,
+        weight_decay=cfg.training_weight_decay,
+        num_examples=cfg.training_num_examples,
+        max_new_tokens=cfg.training_max_new_tokens,
+        embedding_dim=cfg.lstm_embedding_dim,
+        hidden_dim=cfg.lstm_hidden_dim,
+        num_layers=cfg.lstm_num_layers,
+        dropout=cfg.lstm_dropout,
+        learning_rate=cfg.lstm_learning_rate,
     )
 
     train_dataset = NextTokenDataset(train_output_path)
@@ -115,10 +143,10 @@ def run_training() -> tuple:
         result.best_params.learning_rate,
     )
     logger.info(
-        "Test metrics: loss=%.4f rouge1=%.4f rougeL=%.4f",
+        "Test metrics: loss=%.4f rouge1=%.4f rouge2=%.4f",
         result.test_metrics.loss,
         result.test_metrics.rouge1,
-        result.test_metrics.rougeL,
+        result.test_metrics.rouge2,
     )
     logger.info("Модель сохранена: %s", result.best_model_path)
 
@@ -126,17 +154,31 @@ def run_training() -> tuple:
         tokens_service=tokens_service,
         metric_service=metric_service,
     )
-    baseline_metrics = baseline_service.run(val_dataset=val_dataset)
-    logger.info(
-        "DistilGPT2 baseline metrics: rouge1=%.4f rougeL=%.4f",
-        baseline_metrics.rouge1,
-        baseline_metrics.rougeL,
+    baseline_val_metrics, baseline_test_metrics = baseline_service.run(
+        val_dataset=val_dataset,
+        test_dataset=test_dataset,
+        examples_count=config.num_examples,
+        max_new_tokens=config.max_new_tokens,
     )
-    return result, baseline_metrics
+    logger.info(
+        "DistilGPT2 baseline val: rouge1=%.4f rouge2=%.4f | test: rouge1=%.4f rouge2=%.4f",
+        baseline_val_metrics.rouge1,
+        baseline_val_metrics.rouge2,
+        baseline_test_metrics.rouge1,
+        baseline_test_metrics.rouge2,
+    )
+    return result, baseline_val_metrics, baseline_test_metrics
 
 
 if __name__ == "__main__":
+    config_snapshot = get_config_snapshot()
     prepare_results = prepare_datasets(recreate_data=True)
-    train_result, baseline_result = run_training()
+    train_result, baseline_val_result, baseline_test_result = run_training()
     report_service = FinalReportService(report_output_path=report_output_path)
-    report_service.create(prepare_results, train_result, baseline_result)
+    report_service.create(
+        config_snapshot,
+        prepare_results,
+        train_result,
+        baseline_val_result,
+        baseline_test_result,
+    )
