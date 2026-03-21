@@ -14,7 +14,6 @@ class ModelHyperParams:
 class TrainingConfig:
     batch_size: int = 256
     epochs: int = 8
-    search_epochs: int = 1
     prompt_fraction: float = 0.75
     weight_decay: float = 0.0
     num_examples: int = 8

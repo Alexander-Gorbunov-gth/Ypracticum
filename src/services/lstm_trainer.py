@@ -3,8 +3,10 @@ from pathlib import Path
 
 import torch
 from torch import nn
+from torch.amp import GradScaler, autocast
 from torch.optim import Adam
 from torch.utils.data import DataLoader
+from tqdm.auto import tqdm
 
 from src.domain.training import EpochMetrics, ModelHyperParams, TrainingConfig
 from src.services.lstm import NextTokenLSTM
@@ -41,6 +43,9 @@ class LSTMTrainerService:
         self._config = config
         self._model_output_path = model_output_path
         self._device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self._amp_enabled = self._device.type == "cuda"
+        if self._amp_enabled:
+            torch.backends.cudnn.benchmark = True
         logger.info(f"Интерфейс для модели - {self._device}")
 
     def _build_model(self, params: ModelHyperParams) -> NextTokenLSTM:
@@ -58,44 +63,74 @@ class LSTMTrainerService:
         loader: DataLoader,
         criterion: nn.Module,
         optimizer: torch.optim.Optimizer,
+        scaler: GradScaler,
+        epoch: int,
+        total_batches: int | None = None,
     ) -> float:
         model.train()
-        total_loss = 0.0
+        total_loss = torch.zeros((), device=self._device)
+        batches = 0
 
-        for x_batch, y_batch in loader:
+        for x_batch, y_batch in tqdm(
+            loader,
+            desc=f"Train epoch {epoch:02d}",
+            unit="batch",
+            leave=False,
+            total=total_batches,
+        ):
             x_batch = x_batch.to(self._device)
             y_batch = y_batch.to(self._device)
 
             optimizer.zero_grad(set_to_none=True)
-            logits, _ = model(x_batch)
-            loss = criterion(logits, y_batch)
-            loss.backward()
+            with autocast(device_type=self._device.type, enabled=self._amp_enabled):
+                logits, _ = model(x_batch)
+                loss = criterion(logits, y_batch)
+            scaler.scale(loss).backward()
 
+            scaler.unscale_(optimizer)
             nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
-            optimizer.step()
+            scaler.step(optimizer)
+            scaler.update()
 
-            total_loss += loss.item()
+            total_loss += loss.detach()
+            batches += 1
 
-        return total_loss / len(loader)
+        return (total_loss / max(batches, 1)).item()
 
     @torch.no_grad()
     def _evaluate(
-        self, model: NextTokenLSTM, loader: DataLoader, criterion: nn.Module
+        self,
+        model: NextTokenLSTM,
+        loader: DataLoader,
+        criterion: nn.Module,
+        stage: str,
+        epoch: int | None = None,
+        total_batches: int | None = None,
     ) -> EpochMetrics:
         model.eval()
-        total_loss = 0.0
+        total_loss = torch.zeros((), device=self._device)
         total_rouge1 = 0.0
         total_rouge2 = 0.0
         samples = 0
+        batches = 0
         correct, total = 0, 0
 
-        for x_batch, y_batch in loader:
+        desc = f"{stage} epoch {epoch:02d}" if epoch is not None else stage
+        for x_batch, y_batch in tqdm(
+            loader,
+            desc=desc,
+            unit="batch",
+            leave=False,
+            total=total_batches,
+        ):
             x_batch = x_batch.to(self._device)
             y_batch = y_batch.to(self._device)
 
-            logits, _ = model(x_batch)
-            loss = criterion(logits, y_batch)
-            total_loss += loss.item()
+            with autocast(device_type=self._device.type, enabled=self._amp_enabled):
+                logits, _ = model(x_batch)
+                loss = criterion(logits, y_batch)
+            total_loss += loss.detach()
+            batches += 1
             preds = torch.argmax(logits, dim=1)
 
             correct += (preds == y_batch).sum().item()
@@ -109,11 +144,11 @@ class LSTMTrainerService:
                 total_rouge1 += rouge1
                 total_rouge2 += rouge2
                 samples += 1
-            accuracy = correct / total
+        accuracy = correct / max(total, 1)
 
         return EpochMetrics(
             accuracy=accuracy,
-            loss=total_loss / len(loader),
+            loss=(total_loss / max(batches, 1)).item(),
             rouge1=total_rouge1 / max(samples, 1),
             rouge2=total_rouge2 / max(samples, 1),
         )
@@ -127,8 +162,9 @@ class LSTMTrainerService:
         max_new_tokens: int = 1,
     ) -> list[tuple[str, str, str]]:
         examples: list[tuple[str, str, str]] = []
-        for idx in range(min(num_examples, len(dataset))):
-            x_tokens, y_token = dataset[idx]
+        for x_tokens, y_token in dataset:
+            if len(examples) >= num_examples:
+                break
 
             x_batch = x_tokens.unsqueeze(0).to(self._device)
             generated = model.generate(input_ids=x_batch, max_new_tokens=max_new_tokens)
@@ -171,17 +207,54 @@ class LSTMTrainerService:
             lr=params.learning_rate,
             weight_decay=self._config.weight_decay,
         )
+        scaler = GradScaler(device="cuda", enabled=self._amp_enabled)
 
         best_val_loss = float("inf")
         best_epoch = 1
         epoch_history: list[dict[str, float]] = []
+        train_batches_per_epoch = len(train_loader)
+        val_batches_per_epoch = len(val_loader)
+        test_batches_per_epoch = len(test_loader)
 
-        for epoch in range(1, self._config.epochs + 1):
+        logger.info(
+            "Батчей на эпоху: train=%s val=%s test=%s | train батчей за все эпохи=%s",
+            train_batches_per_epoch,
+            val_batches_per_epoch,
+            test_batches_per_epoch,
+            train_batches_per_epoch * self._config.epochs,
+        )
+
+        for epoch in tqdm(
+            range(1, self._config.epochs + 1),
+            total=self._config.epochs,
+            desc="LSTM epochs",
+            unit="epoch",
+        ):
             train_loss = self._train_one_epoch(
-                model, train_loader, criterion, optimizer
+                model,
+                train_loader,
+                criterion,
+                optimizer,
+                scaler=scaler,
+                epoch=epoch,
+                total_batches=train_batches_per_epoch,
             )
-            val_metrics = self._evaluate(model, val_loader, criterion)
-            test_metrics_epoch = self._evaluate(model, test_loader, criterion)
+            val_metrics = self._evaluate(
+                model,
+                val_loader,
+                criterion,
+                stage="Val",
+                epoch=epoch,
+                total_batches=val_batches_per_epoch,
+            )
+            test_metrics_epoch = self._evaluate(
+                model,
+                test_loader,
+                criterion,
+                stage="Test",
+                epoch=epoch,
+                total_batches=test_batches_per_epoch,
+            )
 
             print(
                 f"Epoch {epoch:02d}/{self._config.epochs} | "
@@ -215,7 +288,13 @@ class LSTMTrainerService:
         model.load_state_dict(
             torch.load(self._model_output_path, map_location=self._device)
         )
-        test_metrics = self._evaluate(model, test_loader, criterion)
+        test_metrics = self._evaluate(
+            model,
+            test_loader,
+            criterion,
+            stage="Test final",
+            total_batches=test_batches_per_epoch,
+        )
         print(
             f"\nTest: loss={test_metrics.loss:.4f}, "
             f"rouge1={test_metrics.rouge1:.4f}, rouge2={test_metrics.rouge2:.4f}"

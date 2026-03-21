@@ -1,5 +1,6 @@
 from logging import getLogger
 
+from tqdm.auto import tqdm
 from transformers import pipeline
 
 from src.domain.training import BaselineMetrics
@@ -35,8 +36,14 @@ class DistilGPT2BaselineService:
         total_rouge2 = 0.0
         samples = 0
 
-        for index in range(min(len(dataset), max_eval_samples)):
-            x_tokens, y_token = dataset[index]
+        for x_tokens, y_token in tqdm(
+            dataset,
+            total=max_eval_samples,
+            desc=f"Baseline {split}",
+            unit="sample",
+        ):
+            if samples >= max_eval_samples:
+                break
             prompt_text = self._tokens_service.decode_tokens(x_tokens.tolist()).strip()
             target_text = self._tokens_service.decode_tokens(
                 [int(y_token.item())]
@@ -94,8 +101,15 @@ class DistilGPT2BaselineService:
         max_new_tokens: int = 1,
     ) -> list[tuple[str, str, str]]:
         examples: list[tuple[str, str, str]] = []
-        for index in range(min(len(dataset), examples_count)):
-            x_tokens, y_token = dataset[index]
+        for x_tokens, y_token in tqdm(
+            dataset,
+            total=examples_count,
+            desc="Baseline examples",
+            unit="sample",
+            leave=False,
+        ):
+            if len(examples) >= examples_count:
+                break
             prompt_text = self._tokens_service.decode_tokens(x_tokens.tolist()).strip()
             target_text = self._tokens_service.decode_tokens(
                 [int(y_token.item())]

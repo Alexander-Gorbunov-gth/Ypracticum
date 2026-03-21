@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Iterator, List
 import pandas as pd
 from sklearn.model_selection import train_test_split
+from tqdm.auto import tqdm
 
 
 from src.services.tokens import iTokensPreparation, get_tokens_service
@@ -97,7 +98,11 @@ class TextDataPreparation(iDataPreparation):
             input_path.open("r", encoding="utf-8") as input_file,
             output_path.open("w", encoding="utf-8", newline="") as output_file,
         ):
-            for batch in self._batched_blocks(input_file, batch_size, min_text_length):
+            for batch in tqdm(
+                self._batched_blocks(input_file, batch_size, min_text_length),
+                desc="Prepare raw csv",
+                unit="batch",
+            ):
                 df = pd.DataFrame(
                     {
                         "text": batch,
@@ -143,8 +148,12 @@ class TextDataPreparation(iDataPreparation):
         first_write = True
 
         with output_path.open("w", encoding="utf-8", newline="") as output_file:
-            for chunk in pd.read_csv(
-                input_path, names=["text"], header=None, chunksize=batch_size
+            for chunk in tqdm(
+                pd.read_csv(
+                    input_path, names=["text"], header=None, chunksize=batch_size
+                ),
+                desc="Build X/Y dataset",
+                unit="chunk",
             ):
                 pairs: list[tuple[list[int], int]] = []
                 for text in chunk["text"].dropna().astype(str):

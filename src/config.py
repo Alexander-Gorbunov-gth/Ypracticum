@@ -17,14 +17,14 @@ class Settings(BaseSettings):
         extra="ignore",
     )
     local_develop: bool = Field(default=True, validation_alias="LOCAL_DEVELOP")
+    recreate_data: bool = Field(default=False, validation_alias="RECREATE_DATA")
     local_develop_line_limit: int = Field(
         default=30, validation_alias="LOCAL_DEVELOP_LINE_LIMIT"
     )
-    training_batch_size: int = Field(default=256, validation_alias="TRAINING_BATCH_SIZE")
-    training_epochs: int = Field(default=8, validation_alias="TRAINING_EPOCHS")
-    training_search_epochs: int = Field(
-        default=1, validation_alias="TRAINING_SEARCH_EPOCHS"
+    training_batch_size: int = Field(
+        default=256, validation_alias="TRAINING_BATCH_SIZE"
     )
+    training_epochs: int = Field(default=8, validation_alias="TRAINING_EPOCHS")
     training_prompt_fraction: float = Field(
         default=0.75, validation_alias="TRAINING_PROMPT_FRACTION"
     )
@@ -36,6 +36,9 @@ class Settings(BaseSettings):
     )
     training_max_new_tokens: int = Field(
         default=5, validation_alias="TRAINING_MAX_NEW_TOKENS"
+    )
+    training_dataset_chunksize: int = Field(
+        default=10_000, validation_alias="TRAINING_DATASET_CHUNKSIZE"
     )
     lstm_embedding_dim: int = Field(default=128, validation_alias="LSTM_EMBEDDING_DIM")
     lstm_hidden_dim: int = Field(default=256, validation_alias="LSTM_HIDDEN_DIM")

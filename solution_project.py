@@ -10,7 +10,10 @@ from src.services.report_service import FinalReportService
 from src.services.rouge_service import get_metric_service
 from src.services.tokens import get_tokens_service
 from src.services.transformer_baseline import DistilGPT2BaselineService
-from src.services.training_dataset import DataLoaderFactory, NextTokenDataset
+from src.services.training_dataset import (
+    DataLoaderFactory,
+    NextTokenDataset,
+)
 
 logger = getLogger(__name__)
 
@@ -62,14 +65,15 @@ def prepare_datasets(recreate_data: bool = False) -> dict[str, str]:
 def get_config_snapshot() -> dict[str, str]:
     return {
         "LOCAL_DEVELOP": str(cfg.local_develop),
+        "RECREATE_DATA": str(cfg.recreate_data),
         "LOCAL_DEVELOP_LINE_LIMIT": str(cfg.local_develop_line_limit),
         "TRAINING_BATCH_SIZE": str(cfg.training_batch_size),
         "TRAINING_EPOCHS": str(cfg.training_epochs),
-        "TRAINING_SEARCH_EPOCHS": str(cfg.training_search_epochs),
         "TRAINING_PROMPT_FRACTION": str(cfg.training_prompt_fraction),
         "TRAINING_WEIGHT_DECAY": str(cfg.training_weight_decay),
         "TRAINING_NUM_EXAMPLES": str(cfg.training_num_examples),
         "TRAINING_MAX_NEW_TOKENS": str(cfg.training_max_new_tokens),
+        "TRAINING_DATASET_CHUNKSIZE": str(cfg.training_dataset_chunksize),
         "LSTM_EMBEDDING_DIM": str(cfg.lstm_embedding_dim),
         "LSTM_HIDDEN_DIM": str(cfg.lstm_hidden_dim),
         "LSTM_NUM_LAYERS": str(cfg.lstm_num_layers),
@@ -87,7 +91,6 @@ def run_training() -> tuple:
     config = TrainingConfig(
         batch_size=cfg.training_batch_size,
         epochs=cfg.training_epochs,
-        search_epochs=cfg.training_search_epochs,
         prompt_fraction=cfg.training_prompt_fraction,
         weight_decay=cfg.training_weight_decay,
         num_examples=cfg.training_num_examples,
@@ -99,9 +102,19 @@ def run_training() -> tuple:
         learning_rate=cfg.lstm_learning_rate,
     )
 
-    train_dataset = NextTokenDataset(train_output_path)
-    val_dataset = NextTokenDataset(val_output_path)
-    test_dataset = NextTokenDataset(test_output_path)
+    train_dataset = NextTokenDataset(
+        train_output_path,
+        chunksize=cfg.training_dataset_chunksize,
+        shuffle_buffer_size=cfg.training_dataset_chunksize,
+    )
+    val_dataset = NextTokenDataset(
+        val_output_path,
+        chunksize=cfg.training_dataset_chunksize,
+    )
+    test_dataset = NextTokenDataset(
+        test_output_path,
+        chunksize=cfg.training_dataset_chunksize,
+    )
 
     dataloader_factory = DataLoaderFactory()
     train_loader = dataloader_factory.create(
@@ -172,7 +185,7 @@ def run_training() -> tuple:
 
 if __name__ == "__main__":
     config_snapshot = get_config_snapshot()
-    prepare_results = prepare_datasets(recreate_data=True)
+    prepare_results = prepare_datasets(recreate_data=cfg.recreate_data)
     train_result, baseline_val_result, baseline_test_result = run_training()
     report_service = FinalReportService(report_output_path=report_output_path)
     report_service.create(

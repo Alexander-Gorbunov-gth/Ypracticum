@@ -1,0 +1,104 @@
+ИТОГОВЫЙ ОТЧЕТ ПО ПРОЕКТУ
+Дата: 2026-03-21 15:35:53
+
+0. Входные параметры из конфига
+- DATA_BATCH_SIZE_PREP=50
+- DATA_X_LENGTH=7
+- LOCAL_DEVELOP=True
+- LOCAL_DEVELOP_LINE_LIMIT=100000
+- LSTM_DROPOUT=0.1
+- LSTM_EMBEDDING_DIM=192
+- LSTM_HIDDEN_DIM=512
+- LSTM_LEARNING_RATE=0.001
+- LSTM_NUM_LAYERS=1
+- TRAINING_BATCH_SIZE=1024
+- TRAINING_EPOCHS=10
+- TRAINING_MAX_NEW_TOKENS=1
+- TRAINING_NUM_EXAMPLES=8
+- TRAINING_PROMPT_FRACTION=0.75
+- TRAINING_WEIGHT_DECAY=0.0001
+
+1. Подготовка данных
+- Process dataset: Создан новый файл csv с сырыми данными, количество строк - 100000
+- X/Y dataset: Создан датасет X->Y, количество строк - 3955982
+- Split train/val/test: Разделение завершено: train=3164785, val=395598, test=395599, total=3955982
+
+2. LSTM
+- Параметры: emb=192, hid=512, layers=1, dropout=0.1, lr=0.001
+- Лучшая эпоха: 10
+- Test: loss=5.8042, accuracy=0.1474, rouge1=0.1486, rouge2=0.0000
+- История по эпохам:
+  epoch=1 | train_loss=6.3151 | val_accuracy=0.1265 | val_loss=6.0175 | val_rouge1=0.1276 | val_rouge2=0.0000 | test_loss=6.0203
+  epoch=2 | train_loss=5.9790 | val_accuracy=0.1367 | val_loss=5.9164 | val_rouge1=0.1378 | val_rouge2=0.0000 | test_loss=5.9201
+  epoch=3 | train_loss=5.9163 | val_accuracy=0.1405 | val_loss=5.8742 | val_rouge1=0.1417 | val_rouge2=0.0000 | test_loss=5.8781
+  epoch=4 | train_loss=5.8835 | val_accuracy=0.1428 | val_loss=5.8468 | val_rouge1=0.1441 | val_rouge2=0.0000 | test_loss=5.8507
+  epoch=5 | train_loss=5.8627 | val_accuracy=0.1445 | val_loss=5.8291 | val_rouge1=0.1457 | val_rouge2=0.0000 | test_loss=5.8335
+  epoch=6 | train_loss=5.8489 | val_accuracy=0.1457 | val_loss=5.8187 | val_rouge1=0.1469 | val_rouge2=0.0000 | test_loss=5.8231
+  epoch=7 | train_loss=5.8399 | val_accuracy=0.1465 | val_loss=5.8107 | val_rouge1=0.1477 | val_rouge2=0.0000 | test_loss=5.8155
+  epoch=8 | train_loss=5.8336 | val_accuracy=0.1473 | val_loss=5.8053 | val_rouge1=0.1485 | val_rouge2=0.0000 | test_loss=5.8103
+  epoch=9 | train_loss=5.8290 | val_accuracy=0.1480 | val_loss=5.8006 | val_rouge1=0.1492 | val_rouge2=0.0000 | test_loss=5.8056
+  epoch=10 | train_loss=5.8250 | val_accuracy=0.1481 | val_loss=5.7989 | val_rouge1=0.1493 | val_rouge2=0.0000 | test_loss=5.8042
+- Примеры LSTM:
+  [1] input:  as sokka hoooot hot
+      target: hot
+      pred:   and
+  [2] input:  from pizza amp politically incorrect couriers
+      target: on
+      pred:   in
+  [3] input:  go down when you go down down
+      target: ##qu
+      pred:   to
+  [4] input:  joined the party why couldnt the
+      target: cold
+      pred:   same
+  [5] input:  or trying to sell me something and
+      target: yet
+      pred:   i
+  [6] input:  says she hasnt been able to
+      target: sleep
+      pred:   go
+  [7] input:  headache my biology test was a bad
+      target: history
+      pred:   day
+  [8] input:  ##made me sad today im honestly scared
+      target: its
+      pred:   i
+
+3. Baseline DistilGPT2 (pretrained, transformers.pipeline)
+- Параметры генерации: max_new_tokens=1, do_sample=True, top_k=50
+- Validation: rouge1=0.0940, rouge2=0.0000, samples=500
+- Test: rouge1=0.0840, rouge2=0.0000, samples=500
+- Примеры DistilGPT2:
+  [1] input:  as sokka hoooot hot
+      target: hot
+      pred:   sk
+  [2] input:  from pizza amp politically incorrect couriers
+      target: on
+      pred:   .
+  [3] input:  go down when you go down down
+      target: ##qu
+      pred:   .
+  [4] input:  joined the party why couldnt the
+      target: cold
+      pred:   party
+  [5] input:  or trying to sell me something and
+      target: yet
+      pred:   I
+  [6] input:  says she hasnt been able to
+      target: sleep
+      pred:   find
+  [7] input:  headache my biology test was a bad
+      target: history
+      pred:   thing
+  [8] input:  ##made me sad today im honestly scared
+      target: its
+      pred:   to
+
+4. Сравнение и выводы
+- Сравнение по тесту (ROUGE-1): LSTM=0.1486 vs DistilGPT2=0.0840
+- Лучшая модель: LSTM
+- Рекомендация: Для этой постановки (next-token по X->Y) рекомендуем LSTM: она показала не хуже ROUGE на тесте и имеет контролируемый процесс обучения.
+
+5. Артефакты
+- LSTM model path: /home/ubuntu/server/models/next_token_lstm.pt
+- Report path: /home/ubuntu/server/reports/final_report_20260321_153553.txt
